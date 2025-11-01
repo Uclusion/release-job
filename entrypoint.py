@@ -6,7 +6,6 @@ import re
 import urllib.request
 import json
 import urllib.parse
-from urllib.parse import urlencode
 
 
 DEV_API_URL = "dev.api.uclusion.com/v1"
@@ -61,9 +60,9 @@ def login(api_url, market_id, secret, secret_id):
 
 
 def label_jobs(short_codes, capability, domain, label_to_apply):
-    encoded_params = [('code', item) for item in short_codes]
-    complete_job_api_url = 'https://investibles.' + domain + '/add_label?' + urlencode(encoded_params)
+    complete_job_api_url = 'https://investibles.' + domain + '/add_labels'
     data = {
+        'ticket_codes': short_codes,
         'label': label_to_apply
     }
     return send(data, 'PATCH', complete_job_api_url, capability)
