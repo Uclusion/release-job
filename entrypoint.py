@@ -80,7 +80,7 @@ if __name__ == "__main__" :
     logger = logging.getLogger()
     logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(levelname)s: %(message)s')
 
-    commits = send('GET', f"api.github.com/repos/{git_repository}/commits?sha={git_sha}", git_token)
+    commits = send('GET', f"https://api.github.com/repos/{git_repository}/commits?sha={git_sha}", git_token)
 
     regex = r'([A-Z]+-[A-Za-z]+-\d+)'
     jobs = []
