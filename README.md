@@ -22,6 +22,7 @@ jobs:
           secret_key: ${{ secrets.SECRET_KEY }}
           workspace_id: ${{ secrets.WORKSPACE_ID }}
           git_token: ${{ secrets.GIT_TOKEN }}
-          label: 'Released on stage'
-          github-event-message: ${{ github.event.release.tag_name }}
+          git-sha: ${{ github.sha }}
+          git-repository: ${{ github.repository }}
+          label: "Deployed to stage"
 ```
