@@ -16,12 +16,6 @@ inputs:
   git_token:
     description: 'Github token'
     required: true
-  git-sha:
-    description: 'The field github.sha associated with commits with Uclusion job codes'
-    required: true
-  git-repository:
-    description: 'The field github.repository which returns owner/repo-name'
-    required: true
   label:
     description: 'Label to apply to jobs listed in the release commits.'
     required: true
@@ -34,6 +28,6 @@ runs:
     - ${{ inputs.secret_key }}
     - ${{ inputs.workspace_id }}
     - ${{ inputs.git_token }}
-    - ${{ inputs.git-sha }}
-    - ${{ inputs.git-repository }}
+    - ${{ github.sha }}
+    - ${{ github.repository }}
     - ${{ inputs.label }}
