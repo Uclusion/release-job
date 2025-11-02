@@ -117,9 +117,8 @@ if __name__ == "__main__" :
     regex = r'([A-Z]+-[A-Za-z]+-\d+)'
     jobs = []
     for commit in commits:
-        commit_sha = commit["sha"]
-        commit_message = commit["commit"]["message"]
-
+        commit_sha = commit.sha
+        commit_message = commit.commit.message
         match = re.search(regex, commit_message)
         if match:
             extracted = match.group(1)
