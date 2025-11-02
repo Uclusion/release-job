@@ -6,6 +6,8 @@ import re
 import urllib.request
 import json
 import urllib.parse
+from datetime import date, timedelta, datetime
+from github import Github
 
 
 DEV_API_URL = "dev.api.uclusion.com/v1"
@@ -65,7 +67,20 @@ def label_jobs(short_codes, capability, domain, label_to_apply):
         'ticket_codes': short_codes,
         'label': label_to_apply
     }
-    return send(data, 'PATCH', complete_job_api_url, capability)
+    return send('PATCH', complete_job_api_url, capability, data)
+
+
+def get_completed_stage(stages):
+    for stage in stages:
+        if not stage.get('allows_tasks', True):
+            return stage
+    raise Exception('No stage found')
+
+
+def get_date_days_ago(days_in_past):
+    today = date.today()
+    past_date = today - timedelta(days=days_in_past)
+    return datetime.combine(past_date, datetime.min.time())
 
 
 if __name__ == "__main__" :
@@ -81,7 +96,23 @@ if __name__ == "__main__" :
     logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(levelname)s: %(message)s')
     git_api_url = f"https://api.github.com/repos/{git_repository}/commits?sha={git_sha}"
     logger.info(f"Git API URL: {git_api_url}")
-    commits = send('GET', git_api_url, git_token)
+
+    api_url = PRODUCTION_API_URL
+    if secret_key_id == DEV_SECRET_KEY_ID:
+        api_url = DEV_API_URL
+    elif secret_key_id == STAGE_SECRET_KEY_ID:
+        api_url = STAGE_API_URL
+    response = login(api_url, workspace_id, secret_key, secret_key_id)
+    if response is None or 'uclusion_token' not in response:
+        raise Exception(response)
+    api_token = response['uclusion_token']
+    stages = response['stages']
+    completed_stage = get_completed_stage(stages)
+    days_visible = completed_stage['days_visible']
+
+    g = Github(git_token)
+    repo = g.get_repo(git_repository)
+    commits = repo.get_commits(sha=git_sha, since=get_date_days_ago(days_visible))
 
     regex = r'([A-Z]+-[A-Za-z]+-\d+)'
     jobs = []
@@ -96,13 +127,4 @@ if __name__ == "__main__" :
             jobs.append(extracted)
 
     if len(jobs) > 0:
-        api_url = PRODUCTION_API_URL
-        if secret_key_id == DEV_SECRET_KEY_ID:
-            api_url = DEV_API_URL
-        elif secret_key_id == STAGE_SECRET_KEY_ID:
-            api_url = STAGE_API_URL
-        response = login(api_url, workspace_id, secret_key, secret_key_id)
-        if response is None or 'uclusion_token' not in response:
-            raise Exception(response)
-        api_token = response['uclusion_token']
         label_jobs(jobs, api_token, api_url, label)

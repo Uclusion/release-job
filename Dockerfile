@@ -6,6 +6,8 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+RUN pip install PyGithub
+
 COPY entrypoint.py /usr/local/bin/entrypoint.py
 
 # Make the entrypoint.py executable
