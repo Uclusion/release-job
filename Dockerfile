@@ -6,7 +6,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install PyGithub
+RUN pip install --break-system-packages PyGithub
 
 COPY entrypoint.py /usr/local/bin/entrypoint.py
 
