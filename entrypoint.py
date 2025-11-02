@@ -58,7 +58,7 @@ def login(api_url, market_id, secret, secret_id):
         'client_secret': secret,
         'client_id': secret_id
     }
-    return send(data, 'POST', login_api_url)
+    return send('POST', login_api_url, None, data)
 
 
 def label_jobs(short_codes, capability, domain, label_to_apply):
