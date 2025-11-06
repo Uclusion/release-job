@@ -18,7 +18,7 @@ jobs:
     environment:
       name: "stage"
     steps:
-      - name: Mark job complete
+      - name: Mark jobs released
         uses: Uclusion/release-job@v1
         with:
           secret_key_id: ${{ secrets.SECRET_KEY_ID }}
