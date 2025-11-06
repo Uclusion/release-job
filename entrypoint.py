@@ -114,7 +114,7 @@ if __name__ == "__main__" :
     repo = g.get_repo(git_repository)
     commits = repo.get_commits(sha=git_sha, since=get_date_days_ago(days_visible))
 
-    regex = r'([A-Z]+-[A-Za-z]+-\d+)'
+    regex = r'([A-Z]+-[A-Za-z\s]+-\d+)'
     jobs = []
     for commit in commits:
         commit_sha = commit.sha
