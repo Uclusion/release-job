@@ -1,9 +1,10 @@
 # release-job
-Add a label to all Uclusion jobs listed in commits in a release. For performance reasons, the query for commits goes 
-back only as many days as the workspace has set for its Completed Task display.
+Add a label to all Uclusion jobs listed in commits in a release. See doc [here](https://documentation.uclusion.com/actions).
+
+For performance reasons, the query for commits goes back only as many days as the workspace has set for its Completed 
+Task display.
 
 Example:
-
 ```
 name: Mark jobs with stage label
 
