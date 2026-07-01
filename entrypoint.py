@@ -83,6 +83,28 @@ def get_date_days_ago(days_in_past):
     return datetime.combine(past_date, datetime.min.time())
 
 
+def get_job_report(short_code, capability, domain):
+    report_api_url = 'https://investibles.' + domain + '/cli_report/' + urllib.parse.quote(short_code)
+    return send('GET', report_api_url, capability)
+
+
+def get_enclosing_job_code(report):
+    if not report:
+        return None
+    match = re.search(r'##\s*Job\s+(J-[A-Za-z\s]+-\d+)', report)
+    return match.group(1).strip() if match else None
+
+
+def job_has_open_tasks(report):
+    # Open tasks render as '#### Task T-...'; resolved tasks render as '#### Resolved Task ...' (no match).
+    return report is not None and '\n#### Task ' in report
+
+
+def add_note(short_code, body, capability, domain):
+    note_api_url = 'https://investibles.' + domain + '/cli/' + urllib.parse.quote(short_code)
+    return send('POST', note_api_url, capability, {'body': body, 'tz': 'UTC'})
+
+
 if __name__ == "__main__" :
     secret_key_id = sys.argv[1]
     secret_key = sys.argv[2]
@@ -114,16 +136,70 @@ if __name__ == "__main__" :
     repo = g.get_repo(git_repository)
     commits = repo.get_commits(sha=git_sha, since=get_date_days_ago(days_visible))
 
-    regex = r'([A-Z]+-[A-Za-z\s]+-\d+)'
-    jobs = []
-    for commit in commits:
-        commit_sha = commit.sha
-        commit_message = commit.commit.message
-        match = re.search(regex, commit_message)
-        if match:
-            extracted = match.group(1)
-            logger.info('extracted %s', extracted)
-            jobs.append(extracted)
+    code_regex = r'([A-Z]+-[A-Za-z\s]+-\d+)'
 
-    if len(jobs) > 0:
-        label_jobs(jobs, api_token, api_url, label)
+    def latest_codes(commit_list):
+        # commit_list is newest-first, so the first sha seen for a code is that code's latest commit.
+        found = {}
+        for a_commit in commit_list:
+            match = re.search(code_regex, a_commit.commit.message)
+            if match:
+                code = match.group(1).strip()
+                if code not in found:
+                    found[code] = a_commit.sha
+        return found
+
+    # Commits reachable from the release ref = what is on this environment.
+    on_env_latest = latest_codes(commits)
+    # Latest commit per code on the default branch - may include commits not yet on this environment.
+    head_latest = latest_codes(repo.get_commits(sha=repo.default_branch,
+                                                since=get_date_days_ago(days_visible)))
+
+    def is_current_on_env(code):
+        # A code is 'on this environment' only when its newest commit anywhere is also the newest that
+        # reached here. So a reopened-and-recommitted task whose OLD commit shipped to another
+        # environment is not counted as deployed (C-all-1051).
+        return code in head_latest and on_env_latest.get(code) == head_latest[code]
+
+    if on_env_latest:
+        # Per-task record: label a task/bug only if its LATEST commit is the one on this environment.
+        current_task_codes = [c for c in on_env_latest
+                              if not c.startswith('J-') and is_current_on_env(c)]
+        if current_task_codes:
+            label_jobs(current_task_codes, api_token, api_url, label)
+
+        # Resolve each release code to its enclosing job (one report fetch gives the job + its tasks).
+        job_reports = {}
+        for code in on_env_latest:
+            try:
+                report = get_job_report(code, api_token, api_url)
+            except Exception as e:
+                logger.info('could not fetch report for %s: %s', code, e)
+                continue
+            job_code = code if code.startswith('J-') else get_enclosing_job_code(report)
+            if not job_code:
+                logger.info('no enclosing job for %s', code)
+                continue
+            job_reports.setdefault(job_code, report)
+
+        for job_code, report in job_reports.items():
+            try:
+                # A job's committed units are the codes in its report that actually have a commit.
+                committed = [c for c in set(re.findall(code_regex, report)).union({job_code})
+                             if c in head_latest]
+                pending = sorted(c for c in committed if not is_current_on_env(c))
+                # Fully deployed only if every committed unit's LATEST commit is on this environment
+                # AND there are no open tasks left (J-all-329: 'if no open tasks then actions like job does').
+                fully_deployed = committed and not pending and not job_has_open_tasks(report)
+                if fully_deployed:
+                    label_jobs([job_code], api_token, api_url, label)
+                    summary = label + '. All committed tasks have their latest commit on this environment.'
+                elif pending:
+                    summary = (label + ' not applied: ' + ', '.join(pending)
+                               + ' has a newer commit not on this environment'
+                               + (' and open tasks remain' if job_has_open_tasks(report) else '') + '.')
+                else:
+                    summary = label + ' not applied: the job still has open tasks.'
+                add_note(job_code, summary, api_token, api_url)
+            except Exception as e:
+                logger.info('could not reconcile job %s: %s', job_code, e)
