@@ -95,9 +95,14 @@ def get_enclosing_job_code(report):
     return match.group(1).strip() if match else None
 
 
-def job_has_open_tasks(report):
-    # Open tasks render as '#### Task T-...'; resolved tasks render as '#### Resolved Task ...' (no match).
-    return report is not None and '\n#### Task ' in report
+# Open items render as '#### <Type> <code>'; resolved ones render '#### Resolved <Type> ...' (no match).
+# Open suggestions, questions, and blockers count like tasks: the deployed label implies the job is
+# done, which resolves them, so they must block it too (B-all-478 / Q-all-219).
+OPEN_WORK_HEADINGS = ('\n#### Task ', '\n#### Suggestion ', '\n#### Question ', '\n#### Issue ')
+
+
+def job_has_open_work(report):
+    return report is not None and any(heading in report for heading in OPEN_WORK_HEADINGS)
 
 
 def add_note(short_code, body, capability, domain):
@@ -189,17 +194,17 @@ if __name__ == "__main__" :
                              if c in head_latest]
                 pending = sorted(c for c in committed if not is_current_on_env(c))
                 # Fully deployed only if every committed unit's LATEST commit is on this environment
-                # AND there are no open tasks left (J-all-329: 'if no open tasks then actions like job does').
-                fully_deployed = committed and not pending and not job_has_open_tasks(report)
+                # AND no open tasks, suggestions, questions, or blockers remain (J-all-329 / B-all-478).
+                fully_deployed = committed and not pending and not job_has_open_work(report)
                 if fully_deployed:
                     label_jobs([job_code], api_token, api_url, label)
                     summary = label + '. All committed tasks have their latest commit on this environment.'
                 elif pending:
                     summary = (label + ' not applied: ' + ', '.join(pending)
                                + ' has a newer commit not on this environment'
-                               + (' and open tasks remain' if job_has_open_tasks(report) else '') + '.')
+                               + (' and open work remains' if job_has_open_work(report) else '') + '.')
                 else:
-                    summary = label + ' not applied: the job still has open tasks.'
+                    summary = label + ' not applied: the job still has open tasks, suggestions, questions, or blockers.'
                 add_note(job_code, summary, api_token, api_url)
             except Exception as e:
                 logger.info('could not reconcile job %s: %s', job_code, e)
